@@ -1,5 +1,8 @@
 //从内核态切换到用户态(即从0到3),以便创建任务0；
 //参考https://blog.csdn.net/geekcome/article/details/6459119
+/*保存当前寄存器状态，将模式从内核态切换到用户态，然后将寄存器的
+*值弹出，保持其内容不变，这就是如何切换用户态。
+*/
 #define move_to_user_mode() \
 __asm__ ("movl %%esp,%%eax\n\t" \
 	"pushl $0x17\n\t" \

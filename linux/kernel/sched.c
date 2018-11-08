@@ -91,6 +91,8 @@ void math_state_restore()
 	}
 }
 
+
+//参考：https://www.cnblogs.com/joey-hua/p/5596830.html
 /*
  *  'schedule()' is the scheduler function. This is GOOD CODE! There
  * probably won't be any reason to change this, as it should work well
@@ -101,49 +103,81 @@ void math_state_restore()
  * tasks can run. It can not be killed, and it cannot sleep. The 'state'
  * information in task[0] is never used.
  */
+
+/*
+ * 'schedule()'是调度函数。这是个很好的代码！没有任何理由对它进行修改，因为它可以在所有的
+ * 环境下工作（比如能够对IO-边界处理很好的响应等）。只有一件事值得留意，那就是这里的信号
+ * 处理代码。
+ * 注意！！任务0 是个闲置('idle')任务，只有当没有其它任务可以运行时才调用它。它不能被杀
+ * 死，也不能睡眠。任务0 中的状态信息'state'是从来不用的。
+ */
+
+//current 指向当前的任务。
 void schedule(void)
 {
 	int i,next,c;
-	struct task_struct ** p;
+	struct task_struct ** p;  //任务结构指针的指针。
 
 /* check alarm, wake up any interruptible tasks that have got a signal */
+/* 检测alarm（进程的报警定时值），唤醒任何已得到信号的可中断任务 */
 
+//从任务数组中最后一个任务开水检测alarm
 	for(p = &LAST_TASK ; p > &FIRST_TASK ; --p)
 		if (*p) {
+		// 如果设置过任务的定时值alarm，并且已经过期(alarm<jiffies),则在信号位图中置SIGALRM 信号，
+        // 即向任务发送SIGALARM 信号。然后清alarm。该信号的默认操作是终止进程。
+        // jiffies 是系统从开机开始算起的滴答数（10ms/滴答）。定义在sched.h 第139 行。
 			if ((*p)->alarm && (*p)->alarm < jiffies) {
 					(*p)->signal |= (1<<(SIGALRM-1));
 					(*p)->alarm = 0;
 				}
+	// 如果信号位图中除被阻塞的信号外还有其它信号，并且任务处于可中断状态，则置任务为就绪状态。
+    // 其中'~(_BLOCKABLE & (*p)->blocked)'用于忽略被阻塞的信号，但SIGKILL 和SIGSTOP 不能被阻塞。
 			if (((*p)->signal & ~(_BLOCKABLE & (*p)->blocked)) &&
 			(*p)->state==TASK_INTERRUPTIBLE)
-				(*p)->state=TASK_RUNNING;
+				(*p)->state=TASK_RUNNING;  //置为就绪态（可执行态）
 		}
 
 /* this is the scheduler proper: */
+ /* 这里是调度程序的主要部分 */
 
 	while (1) {
 		c = -1;
 		next = 0;
 		i = NR_TASKS;
 		p = &task[NR_TASKS];
+	  // 这段代码也是从任务数组的最后一个任务开始循环处理，并跳过不含任务的数组槽。比较每个就绪
+      // 状态任务的counter（任务运行时间的递减滴答计数）值，哪一个值大，运行时间还不长，next 就
+      // 指向哪个的任务号。
+
+	  //找出任务数组中时间片最长的任务进行运行
 		while (--i) {
-			if (!*--p)
+			if (!*--p)  //是否含有任务
 				continue;
+			//在运行的任务中哪个的时间片最大，则其运行时间最短。
 			if ((*p)->state == TASK_RUNNING && (*p)->counter > c)
 				c = (*p)->counter, next = i;
 		}
+		//跳出后的c指向时间片最长的，next指向这个任务在数组槽中的位置
+		//如果c大于0，跳出执行该任务。
 		if (c) break;
+
+		//如果所有的时间片都是0，那么久给这些任务重新分配时间片的值，
+		//然后进行下一轮循环。计算方法：counter/2+priority（优先级)
 		for(p = &LAST_TASK ; p > &FIRST_TASK ; --p)
 			if (*p)
 				(*p)->counter = ((*p)->counter >> 1) +
 						(*p)->priority;
 	}
-	switch_to(next);
+   // 切换到任务号为next 的任务运行。在142 行next 被初始化为0。因此若系统中没有任何其它任务
+   // 可运行时，则next 始终为0。因此调度函数会在系统空闲时去执行任务0。此时任务0 仅执行
+   // pause()系统调用，并又会调用本函数
+	switch_to(next);    //切换到任务号为next的任务进行执行。
 }
 
 int sys_pause(void)
 {
-	current->state = TASK_INTERRUPTIBLE;
+	current->state = TASK_INTERRUPTIBLE;//设置当前任务状态：可中断
 	schedule();
 	return 0;
 }
