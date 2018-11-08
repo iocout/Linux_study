@@ -154,12 +154,13 @@ void ll_rw_block(int rw, struct buffer_head * bh)
 	make_request(major,rw,bh);
 }
 
+//块设备初始化，request的dev字段为-1表示空闲请求
 void blk_dev_init(void)
 {
 	int i;
 
 	for (i=0 ; i<NR_REQUEST ; i++) {
-		request[i].dev = -1;
+		request[i].dev = -1;//初始化为空闲请求
 		request[i].next = NULL;
 	}
 }
