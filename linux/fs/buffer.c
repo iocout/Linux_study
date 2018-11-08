@@ -345,37 +345,43 @@ struct buffer_head * breada(int dev,int first, ...)
 	return (NULL);
 }
 
+
+//缓存区初始化函数
+//参数：buffe_end指向缓存区内存的末端；
 void buffer_init(long buffer_end)
 {
 	struct buffer_head * h = start_buffer;
 	void * b;
 	int i;
 
-	if (buffer_end == 1<<20)
+	if (buffer_end == 1<<20) //640k~1M用于显存和BIOS ROM;高端地址应该设置为b=640kb
 		b = (void *) (640*1024);
 	else
-		b = (void *) buffer_end;
+		b = (void *) buffer_end;  //否则，高端地址还是设置Wiebuffer_end
+
+	//下面的代码用来初始化缓存区，建立弓箭缓存区环链表，并获取系统中缓存块的数目
+	//高端划分1k大小的缓存块，低端设置相应的缓存块头部结果指向高端缓存块
 	while ( (b -= BLOCK_SIZE) >= ((void *) (h+1)) ) {
-		h->b_dev = 0;
-		h->b_dirt = 0;
-		h->b_count = 0;
-		h->b_lock = 0;
-		h->b_uptodate = 0;
+		h->b_dev = 0;  //使用该缓存区的设备号
+		h->b_dirt = 0;  //修改标志
+		h->b_count = 0;  //引用计数
+		h->b_lock = 0;  //锁标志
+		h->b_uptodate = 0;  //有效标志
 		h->b_wait = NULL;
 		h->b_next = NULL;
 		h->b_prev = NULL;
-		h->b_data = (char *) b;
+		h->b_data = (char *) b;  //指向末尾的缓存块
 		h->b_prev_free = h-1;
 		h->b_next_free = h+1;
-		h++;
-		NR_BUFFERS++;
-		if (b == (void *) 0x100000)
+		h++;  //接着到下一个缓存头
+		NR_BUFFERS++;  //缓存块计数
+		if (b == (void *) 0x100000)  //如果地址b递减到1m，则跳到640k处，因为这段地址被BIOS ROM和显存使用
 			b = (void *) 0xA0000;
 	}
-	h--;
-	free_list = start_buffer;
-	free_list->b_prev_free = h;
-	h->b_next_free = free_list;
-	for (i=0;i<NR_HASH;i++)
+	h--;  //指向最后一个有效的缓存头结构
+	free_list = start_buffer;  //空闲指针指向第一个头结构
+	free_list->b_prev_free = h;  //做个循环链表
+	h->b_next_free = free_list;  
+	for (i=0;i<NR_HASH;i++)  //初始化hash表
 		hash_table[i]=NULL;
 }	

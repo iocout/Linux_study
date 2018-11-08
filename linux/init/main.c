@@ -151,19 +151,24 @@ void main(void)		/* This really IS void, no error here. */
 
 	//所有方面的初始化调用，请深入源程序看。
 	mem_init(main_memory_start,memory_end);//对内存页进行标记，是否已经使用
-	trap_init();
-	blk_dev_init();
-	chr_dev_init();
-	tty_init();
-	time_init();
-	sched_init();
-	buffer_init(buffer_memory_end);
-	hd_init();
-	floppy_init();
-	sti();
-	move_to_user_mode();
-	if (!fork()) {		/* we count on this going ok */
-		init();
+	trap_init();  //陷阱门（硬件中断向量)初始化。(kernel/traps.c,181)
+	blk_dev_init();  //块设备初始化，（kernel/blk_drv/ll_rw_blk.c,157)
+	chr_dev_init();  //字符设备初始化(kernel/chr_drv/tty_io.c ,347)//未定义任何函数
+
+	//主要用于将控制台和文件流初始化
+	tty_init();  //tty初始化 (kernel/chr_drv/tty_io.c ,105)
+
+	time_init();   //设置开机启动时间
+	sched_init();  //调度程序初始化（加载任务0的tr，ldtr）（kernel/sched.c ,385)
+	buffer_init(buffer_memory_end);   //缓冲初始化,建内存链表等（fs/buffer.c,348)
+	hd_init();   //硬盘初始化程序 （kernel/blk_drv/hd.c,343行）
+	floppy_init();  //软盘初始化（kernel/blk_drv/floppy.c 457行）
+	sti();  //所有初始化都做完了，开启中断位 //这个函数用来开启中断，与cli（）函数一起使用来控制中断的开启与关闭
+
+	//下面过程在堆栈中设置的参数，利用中断返回指令启动任务0执行
+	move_to_user_mode();  //移动用户模式下执行（include/asm/system.h，第一行） //移动到任务0
+	if (!fork()) {		/* we count on this going ok */  //创建进程0            +++++++++++++++++++++++++没看懂
+		init();  //复制，注意已经在新建的子进程（任务一）中执行，
 	}
 /*
  *   NOTE!!   For any other task 'pause()' would mean we have to get a

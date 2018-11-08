@@ -1,3 +1,5 @@
+//从内核态切换到用户态(即从0到3),以便创建任务0；
+//参考https://blog.csdn.net/geekcome/article/details/6459119
 #define move_to_user_mode() \
 __asm__ ("movl %%esp,%%eax\n\t" \
 	"pushl $0x17\n\t" \
