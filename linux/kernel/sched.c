@@ -121,7 +121,7 @@ void schedule(void)
 /* check alarm, wake up any interruptible tasks that have got a signal */
 /* 检测alarm（进程的报警定时值），唤醒任何已得到信号的可中断任务 */
 
-//从任务数组中最后一个任务开水检测alarm
+//从任务数组中最后一个任务开始检测alarm
 	for(p = &LAST_TASK ; p > &FIRST_TASK ; --p)
 		if (*p) {
 		// 如果设置过任务的定时值alarm，并且已经过期(alarm<jiffies),则在信号位图中置SIGALRM 信号，

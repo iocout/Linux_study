@@ -13,14 +13,14 @@
 #include <string.h>
 
 /* we use this so that we can do without the ctype library */
-#define is_digit(c)	((c) >= '0' && (c) <= '9')
+#define is_digit(c)	((c) >= '0' && (c) <= '9')  //判断是否是数字
 
-static int skip_atoi(const char **s)
+static int skip_atoi(const char **s)  //跳过一个个字符，取出数字，这里const的含义是最终的字符是const
 {
 	int i=0;
 
 	while (is_digit(**s))
-		i = i*10 + *((*s)++) - '0';
+		i = i*10 + *((*s)++) - '0';  //i的10倍+（*（*s) ）的值到 ‘0’的位置
 	return i;
 }
 
@@ -62,7 +62,7 @@ static char * number(char * str, int num, int base, int size, int precision
 	if (num==0)
 		tmp[i++]='0';
 	else while (num!=0)
-		tmp[i++]=digits[do_div(num,base)];
+		tmp[i++]=digits[do_div(num,base)];  //it's ok
 	if (i>precision) precision=i;
 	size -= precision;
 	if (!(type&(ZEROPAD+LEFT)))
@@ -89,6 +89,8 @@ static char * number(char * str, int num, int base, int size, int precision
 	return str;
 }
 
+
+//格式化输出：%[flags][width][.precision][|h|l|L][type]
 int vsprintf(char *buf, const char *fmt, va_list args)
 {
 	int len;
@@ -102,34 +104,38 @@ int vsprintf(char *buf, const char *fmt, va_list args)
 	int field_width;	/* width of output field */
 	int precision;		/* min. # of digits for integers; max
 				   number of chars for from string */
-	int qualifier;		/* 'h', 'l', or 'L' for integer fields */
+	int qualifier;		/* 'h', 'l', or 'L' for integer fields 限定符*/
 
-	for (str=buf ; *fmt ; ++fmt) {
-		if (*fmt != '%') {
+	for (str=buf ; *fmt ; ++fmt) {   //扫描格式说明符
+		if (*fmt != '%') {  //如果没有格式说明符，说明是普通的字符，直接写入str指向的buffer即可
 			*str++ = *fmt;
 			continue;
 		}
 			
+		//到这一步，说明遇到了格式说明符
 		/* process flags */
-		flags = 0;
-		repeat:
+		flags = 0;  //
+		repeat:  //do
 			++fmt;		/* this also skips first '%' */
-			switch (*fmt) {
-				case '-': flags |= LEFT; goto repeat;
-				case '+': flags |= PLUS; goto repeat;
-				case ' ': flags |= SPACE; goto repeat;
-				case '#': flags |= SPECIAL; goto repeat;
-				case '0': flags |= ZEROPAD; goto repeat;
+			switch (*fmt) {  //取格式说明符%后面的一个字符，如果是 + - 空格 # 0
+				case '-': flags |= LEFT; goto repeat;  //左对齐  %-
+				case '+': flags |= PLUS; goto repeat;  //头对齐  %+
+				case ' ': flags |= SPACE; goto repeat;  //空格   % 
+				case '#': flags |= SPECIAL; goto repeat;  //输出的进制  %#
+				case '0': flags |= ZEROPAD; goto repeat;  //输出长度不够，用0填充  %0
 				}
 		
 		/* get field width */
-		field_width = -1;
-		if (is_digit(*fmt))
-			field_width = skip_atoi(&fmt);
-		else if (*fmt == '*') {
+		// 紧接着判断下一个字符是不是数字，如果是则表示域宽
+  		//否则
+		field_width = -1;  //格式输出宽度
+		if (is_digit(*fmt))   //如果是个数字
+			field_width = skip_atoi(&fmt);  //把格式输出宽度由字符转换成数字
+		else if (*fmt == '*') {   //如果是*，表示下一个参数指定域宽，用va_arg来取得
+	//	https://blog.csdn.net/tq02h2a/article/details/3001162
 			/* it's the next argument */
-			field_width = va_arg(args, int);
-			if (field_width < 0) {
+			field_width = va_arg(args, int);   
+			if (field_width < 0) {  //如果是个负数，左对齐
 				field_width = -field_width;
 				flags |= LEFT;
 			}

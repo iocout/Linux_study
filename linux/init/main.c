@@ -26,7 +26,37 @@
 *进程0没有多余信息被放入堆栈中，这样，在任务0完成之后，0就不能被后续创建
 *的程序所调用。
 */
+
+/*
+https://blog.csdn.net/u010132427/article/details/52108669
+#define _syscall0(type,name) \
+type name(void) \
+{ \
+long __res; \
+__asm__ volatile ("int $0x80" \
+	: "=a" (__res) \
+	: "0" (__NR_##name)); \
+if (__res >= 0) \
+	return (type) __res; \
+errno = -__res; \
+return -1; \
+}
+*/
 static inline _syscall0(int,fork)//int fork（） 创建进程系统调用,最后的0表示无参数，1表示一个参数
+/*fork函数翻译过来就是：
+
+static inline int fork(void)
+{
+	long __res;
+	__asm__ volatile ("int $0x80" \         //调用系统中断0x80
+	: "=a" (__res) \  			//__res用来承载中断返回值
+	: "0" (__NR_fork)); \			//输入为系统中断调用号__NR_fork ( = 2)
+if (__res >= 0) \
+	return (int) __res; \			//如果返回值>=0，则直接返回该值。
+errno = -__res; \				//否则置出错号
+return -1; \					//并返回-1
+}
+*/
 static inline _syscall0(int,pause)//系统调用，暂停进程，知道收到一个信号
 static inline _syscall1(int,setup,void *,BIOS)//用于初始化
 static inline _syscall0(int,sync)//更新系统
@@ -167,6 +197,9 @@ void main(void)		/* This really IS void, no error here. */
 
 	//下面过程在堆栈中设置的参数，利用中断返回指令启动任务0执行
 	move_to_user_mode();  //移动用户模式下执行（include/asm/system.h，第一行） //移动到任务0
+
+	//Linux的系统调用通过int 80h实现，用系统调用号来区分入口函数
+	//关于80h调用的中断入口参考：https://blog.csdn.net/xiaominthere/article/details/17287965
 	if (!fork()) {		/* we count on this going ok */  //创建进程0            +++++++++++++++++++++++++没看懂
 		init();  //复制，注意已经在新建的子进程（任务一）中执行，
 	}
@@ -177,9 +210,16 @@ void main(void)		/* This really IS void, no error here. */
  * can run). For task0 'pause()' just means we go check if some other
  * task can run, and if not we return here.
  */
-	for(;;) pause();
+	for(;;) pause();  //(kernel/sched.c,144) 在schedule中进行了系统的进程的调度，那个运行，如何运行
 }
 
+
+/*
+*产生格式化信息并输出到标准输出设备stdout（1），这里是指屏幕上显示。参数*fmt 指定输出将
+*采用的格式，参见各种标准c语言书籍。该子程序正好是vsprintf如何使用的一个例子。改程序使用
+*vsprintf（）将格式化的字符串放入printbuf缓冲区，然后用write（）将缓冲区的内容输出到标准
+*设备（1==stdout）。vsprintf（）函数的实现见kernel/vsprintf.c,91
+*/
 static int printf(const char *fmt, ...)
 {
 	va_list args;
