@@ -220,62 +220,73 @@ void main(void)		/* This really IS void, no error here. */
 *vsprintf（）将格式化的字符串放入printbuf缓冲区，然后用write（）将缓冲区的内容输出到标准
 *设备（1==stdout）。vsprintf（）函数的实现见kernel/vsprintf.c,91
 */
-static int printf(const char *fmt, ...)
+static int printf(const char *fmt, ...)  //printf的格式，格式字符串+不定参数
 {
 	va_list args;
 	int i;
 
-	va_start(args, fmt);
-	write(1,printbuf,i=vsprintf(printbuf, fmt, args));
-	va_end(args);
+	va_start(args, fmt);  //初始化
+	write(1,printbuf,i=vsprintf(printbuf, fmt, args));  //调用vsprintf函数,注意，printbuf将放到标准输出stdout -- 1
+	va_end(args);  //释放资源
 	return i;
 }
 
-static char * argv_rc[] = { "/bin/sh", NULL };
-static char * envp_rc[] = { "HOME=/", NULL };
+static char * argv_rc[] = { "/bin/sh", NULL };  //调用执行程序时参数的字符串数组。
+static char * envp_rc[] = { "HOME=/", NULL };  //调用执行程序时的环境字符串数组。
 
-static char * argv[] = { "-/bin/sh",NULL };
-static char * envp[] = { "HOME=/usr/root", NULL };
+static char * argv[] = { "-/bin/sh",NULL };  //同上
+static char * envp[] = { "HOME=/usr/root", NULL };  
+//上面237行中argv[0]中的字符“-”是传递给shell程序sh的一个标志。通过识别该标志，sh程序会作为登录shell执行。
+//其执行过程与在shell提示符下执行sh不太一样。
 
+/*在main（）中已经进行了系统初始化，包括内存管理，各种硬件设备和驱动程序。init（）函数运行在任务0第一次创建的子进程
+*（任务1）中，它首先对第一个将要执行的程序（shell）的环境进行初始化，然后加载该程序并执行之。
+*/
 void init(void)
 {
 	int pid,i;
 
+//这是一个系统调用。用于读取硬盘参数包括分区表信息并加载虚拟盘（若存在的话）和安装根文件系统设备。该函数使用25行上
+//的宏定义的，对应函数是sys_setup()，在(kernel/blk_drv/hd.c,71)
 	setup((void *) &drive_info);
-	(void) open("/dev/tty0",O_RDWR,0);
-	(void) dup(0);
-	(void) dup(0);
+	(void) open("/dev/tty0",O_RDWR,0);  //读写方式打开终端控制台。其文件描述符是0，对应stdin
+	(void) dup(0);  //复制描述符，创建1，对应stdout
+	(void) dup(0);  //复制描述符，创建2，对应stdcerr
 	printf("%d buffers = %d bytes buffer space\n\r",NR_BUFFERS,
-		NR_BUFFERS*BLOCK_SIZE);
-	printf("Free mem: %d bytes\n\r",memory_end-main_memory_start);
-	if (!(pid=fork())) {
-		close(0);
-		if (open("/etc/rc",O_RDONLY,0))
-			_exit(1);
-		execve("/bin/sh",argv_rc,envp_rc);
-		_exit(2);
+		NR_BUFFERS*BLOCK_SIZE);  //使用的内存
+	printf("Free mem: %d bytes\n\r",memory_end-main_memory_start);  //未使用的内存
+	if (!(pid=fork())) {  //fork后，子进程返回0，父进程返回子进程号，这里为子进程（任务2）
+		close(0);  //关闭stdin
+		if (open("/etc/rc",O_RDONLY,0))  //
+			_exit(1);  //操作未经许可，直接调用0x80退出。
+		execve("/bin/sh",argv_rc,envp_rc);  //将该进程替换成shell程序。
+		_exit(2);  //如果execve执行失败（即不在阻塞），就退出，2--文件或目录不存在。
 	}
-	if (pid>0)
-		while (pid != wait(&i))
+	if (pid>0)  //父进程执行的函数
+		while (pid != wait(&i))  //等待子进程终止。如果不是子进程的进程号（pid),就继续等待
 			/* nothing */;
-	while (1) {
-		if ((pid=fork())<0) {
+	while (1) {  //如果执行到这里，说明子进程已经停止或返回。
+		if ((pid=fork())<0) {  //重新创建一个子进程。
 			printf("Fork failed in init\r\n");
 			continue;
 		}
-		if (!pid) {
-			close(0);close(1);close(2);
-			setsid();
-			(void) open("/dev/tty0",O_RDWR,0);
+		if (!pid) {  //新创建的子进程
+			close(0);close(1);close(2);  //关闭原来的文件描述符
+			setsid();  //让子进程不受终端影响，即使终端退出了也能正常运行。
+			(void) open("/dev/tty0",O_RDWR,0);  //重新打开终端
 			(void) dup(0);
 			(void) dup(0);
-			_exit(execve("/bin/sh",argv,envp));
+			_exit(execve("/bin/sh",argv,envp));//将该进程替换成shell程序。用这种方式打开的包含登录程序,用于处理多次输入错误的密码情况
 		}
 		while (1)
 			if (pid == wait(&i))
 				break;
 		printf("\n\rchild %d died with code %04x\n\r",pid,i);
-		sync();
+		sync();  //同步操作，刷新缓冲区
 	}
+	/*
+	*exit()调用退出处理函数，清除i/O缓存，然后调用_exit()
+	*_exit()直接调用系统0x80中断，清理内存空间。
+	*/
 	_exit(0);	/* NOTE! _exit, not exit() */
 }

@@ -116,7 +116,7 @@ int vsprintf(char *buf, const char *fmt, va_list args)
 		/* process flags */
 		flags = 0;  //
 		repeat:  //do
-			++fmt;		/* this also skips first '%' */
+			++fmt;		/* this also skips first '%' */  //进入%后的第一个字符
 			switch (*fmt) {  //取格式说明符%后面的一个字符，如果是 + - 空格 # 0
 				case '-': flags |= LEFT; goto repeat;  //左对齐  %-
 				case '+': flags |= PLUS; goto repeat;  //头对齐  %+
@@ -132,7 +132,6 @@ int vsprintf(char *buf, const char *fmt, va_list args)
 		if (is_digit(*fmt))   //如果是个数字
 			field_width = skip_atoi(&fmt);  //把格式输出宽度由字符转换成数字
 		else if (*fmt == '*') {   //如果是*，表示下一个参数指定域宽，用va_arg来取得
-	//	https://blog.csdn.net/tq02h2a/article/details/3001162
 			/* it's the next argument */
 			field_width = va_arg(args, int);   
 			if (field_width < 0) {  //如果是个负数，左对齐
@@ -142,16 +141,17 @@ int vsprintf(char *buf, const char *fmt, va_list args)
 		}
 
 		/* get the precision */
-		precision = -1;
-		if (*fmt == '.') {
+		//下一位判断小数点
+		precision = -1;  
+		if (*fmt == '.') {  //如果格式说明符号后面跟了'.' ,说明对输出的精度有要求
 			++fmt;	
 			if (is_digit(*fmt))
 				precision = skip_atoi(&fmt);
-			else if (*fmt == '*') {
+			else if (*fmt == '*') {  //如果是*，取args参数做为进度要求
 				/* it's the next argument */
-				precision = va_arg(args, int);
+				precision = va_arg(args, int);  //读取不定参数列表的值
 			}
-			if (precision < 0)
+			if (precision < 0)  //精度必须大于0
 				precision = 0;
 		}
 
@@ -163,38 +163,38 @@ int vsprintf(char *buf, const char *fmt, va_list args)
 		}
 
 		switch (*fmt) {
-		case 'c':
-			if (!(flags & LEFT))
-				while (--field_width > 0)
+		case 'c':     //如果格式说明符是个c,把此时的参数当作ASCII码对待,说明将参数以字符的形式打印
+			if (!(flags & LEFT))  //没有左对齐进入if
+				while (--field_width > 0)  //用空格代替宽度
 					*str++ = ' ';
-			*str++ = (unsigned char) va_arg(args, int);
-			while (--field_width > 0)
+			*str++ = (unsigned char) va_arg(args, int);  //将不定参数的值转化为char型 eg:printf("%c",3);
+			while (--field_width > 0) 
 				*str++ = ' ';
 			break;
 
-		case 's':
-			s = va_arg(args, char *);
+		case 's':  //说明是个字符串
+			s = va_arg(args, char *);  //获取不定参数列表中的char
 			len = strlen(s);
-			if (precision < 0)
+			if (precision < 0)  //蜜汁精度，用来控制字符串精度？？？
 				precision = len;
 			else if (len > precision)
 				len = precision;
 
-			if (!(flags & LEFT))
+			if (!(flags & LEFT))  //没有要求左对齐，就进入if
 				while (len < field_width--)
-					*str++ = ' ';
+					*str++ = ' ';  //放入空格
 			for (i = 0; i < len; ++i)
-				*str++ = *s++;
+				*str++ = *s++;  //将string写入str
 			while (len < field_width--)
-				*str++ = ' ';
+				*str++ = ' ';  //写入空格
 			break;
 
-		case 'o':
+		case 'o':  //八进制输出数
 			str = number(str, va_arg(args, unsigned long), 8,
 				field_width, precision, flags);
 			break;
 
-		case 'p':
+		case 'p':  //指针输出
 			if (field_width == -1) {
 				field_width = 8;
 				flags |= ZEROPAD;
@@ -204,28 +204,28 @@ int vsprintf(char *buf, const char *fmt, va_list args)
 				field_width, precision, flags);
 			break;
 
-		case 'x':
+		case 'x':  //十六进制输出
 			flags |= SMALL;
 		case 'X':
 			str = number(str, va_arg(args, unsigned long), 16,
 				field_width, precision, flags);
 			break;
 
-		case 'd':
+		case 'd':  //有符号整形输出
 		case 'i':
 			flags |= SIGN;
-		case 'u':
+		case 'u':  //无符号整形输出
 			str = number(str, va_arg(args, unsigned long), 10,
 				field_width, precision, flags);
 			break;
 
-		case 'n':
+		case 'n':  //把到目前位置转换输出字符串数字保存到对应参数指针指定的位置
 			ip = va_arg(args, int *);
 			*ip = (str - buf);
 			break;
 
 		default:
-			if (*fmt != '%')
+			if (*fmt != '%')  //== ？？
 				*str++ = '%';
 			if (*fmt)
 				*str++ = *fmt;
