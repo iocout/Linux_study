@@ -30,9 +30,12 @@
  *	2C(%esp) - %oldss
  */
 
-SIG_CHLD	= 17
+ /*
+ *system_call.s 包含硬件和软件的中断处理程序
+ */
+SIG_CHLD	= 17         //定义SIG_CHLD信号（子进程停止或结束）
 
-EAX		= 0x00
+EAX		= 0x00           //堆栈中各个寄存器的偏移位置。
 EBX		= 0x04
 ECX		= 0x08
 EDX		= 0x0C
@@ -42,45 +45,53 @@ DS		= 0x18
 EIP		= 0x1C
 CS		= 0x20
 EFLAGS		= 0x24
-OLDESP		= 0x28
+OLDESP		= 0x28		//当有特权级变化时
 OLDSS		= 0x2C
 
-state	= 0		# these are offsets into the task-struct.
-counter	= 4
-priority = 8
-signal	= 12
-sigaction = 16		# MUST be 16 (=len of sigaction)
+//以下是任务结构（task_struct)中变量的偏移值。
+state	= 0		# these are offsets into the task-struct.//进程状态码
+counter	= 4		//任务运行时间计数，运行时间片。
+priority = 8	//运行优先级数。任务开始时counter=priority，越大则运行时间越长
+signal	= 12	//信号位图，每个比特位代表一种信号，信号值=位偏移值+1
+sigaction = 16		# MUST be 16 (=len of sigaction)//
 blocked = (33*16)
 
 # offsets within sigaction
-sa_handler = 0
-sa_mask = 4
-sa_flags = 8
-sa_restorer = 12
+//定义在sigaction结构中的偏移量，（include/signal.h,48)
+sa_handler = 0		//信号处理过程的句柄（文件描述符）
+sa_mask = 4			//信号量屏蔽码
+sa_flags = 8		//信号集
+sa_restorer = 12  	//恢复函数指针（kernel/signal.c)
 
-nr_system_calls = 72
+nr_system_calls = 72  //Linux0.11版内核中系统调用总数
 
 /*
  * Ok, I get parallel printer interrupts while using the floppy for some
  * strange reason. Urgel. Now I just ignore them.
  */
+
+//定义入口点
 .globl _system_call,_sys_fork,_timer_interrupt,_sys_execve
 .globl _hd_interrupt,_floppy_interrupt,_parallel_interrupt
 .globl _device_not_available, _coprocessor_error
 
-.align 2
+//错误的系统调用号
+.align 2  		//内存4字节对齐
 bad_sys_call:
-	movl $-1,%eax
-	iret
+	movl $-1,%eax		//eax中置-1，退出中断
+	iret  //全部弹出
+//重新执行调度程序入口。
 .align 2
 reschedule:
 	pushl $ret_from_sys_call
 	jmp _schedule
+
+//int 0x80系统调用入口点
 .align 2
 _system_call:
 	cmpl $nr_system_calls-1,%eax
 	ja bad_sys_call
-	push %ds
+	push %ds		//保存源段
 	push %es
 	push %fs
 	pushl %edx

@@ -20,52 +20,56 @@
 
 #include <signal.h>
 
-#define _S(nr) (1<<((nr)-1))
-#define _BLOCKABLE (~(_S(SIGKILL) | _S(SIGSTOP)))
+#define _S(nr) (1<<((nr)-1))  //取信号nr在信号位图中对应位的二进制数值。信号编号1-32
+							  //比如信号5的位图数值=1 << (5-1)=16=00010000b;
+#define _BLOCKABLE (~(_S(SIGKILL) | _S(SIGSTOP)))	//除了SIGKILL 和 SIGSTOP 都是可阻塞的
 
+//显示任务号nr的进程号，进程状态和内核堆栈空闲字节数（大约）
 void show_task(int nr,struct task_struct * p)
 {
-	int i,j = 4096-sizeof(struct task_struct);
+	int i,j = 4096-sizeof(struct task_struct);  
 
-	printk("%d: pid=%d, state=%d, ",nr,p->pid,p->state);
+	printk("%d: pid=%d, state=%d, ",nr,p->pid,p->state);  
 	i=0;
-	while (i<j && !((char *)(p+1))[i])
+	while (i<j && !((char *)(p+1))[i])  //检测指定任务数据结构以后等于0的字节数。
 		i++;
 	printk("%d (of %d) chars free in kernel stack\n\r",i,j);
 }
 
+//显示所有任务的任务号，进程号，进程状态和内核堆栈空闲字节数（大约）
 void show_stat(void)
 {
 	int i;
 
-	for (i=0;i<NR_TASKS;i++)
-		if (task[i])
+	for (i=0;i<NR_TASKS;i++)  //最大进程数量64
+		if (task[i])			//定义在include、kernel/sched.h 4
 			show_task(i,task[i]);
 }
 
-#define LATCH (1193180/HZ)
+#define LATCH (1193180/HZ)  //定义每个时间片的滴答数
 
-extern void mem_use(void);
+extern void mem_use(void);  //未使用
 
-extern int timer_interrupt(void);
-extern int system_call(void);
+extern int timer_interrupt(void);  //时钟中断
+extern int system_call(void);	//系统调用中断处理
 
-union task_union {
+union task_union {  //定义任务联合
 	struct task_struct task;
 	char stack[PAGE_SIZE];
 };
 
-static union task_union init_task = {INIT_TASK,};
+static union task_union init_task = {INIT_TASK,};  //定义初始任务的数据
 
-long volatile jiffies=0;
-long startup_time=0;
-struct task_struct *current = &(init_task.task);
-struct task_struct *last_task_used_math = NULL;
+long volatile jiffies=0;  //从开机开始算起的滴答数时间值（10ms/滴答）。
+long startup_time=0;	//开机时间。从格林威治时间到现在的秒数。
+struct task_struct *current = &(init_task.task);	//当前任务指针，初始化为初始任务。
+struct task_struct *last_task_used_math = NULL;		//使用过协处理器任务的指针
 
-struct task_struct * task[NR_TASKS] = {&(init_task.task), };
+struct task_struct * task[NR_TASKS] = {&(init_task.task), };  //定义任务指针数组
 
-long user_stack [ PAGE_SIZE>>2 ] ;
+long user_stack [ PAGE_SIZE>>2 ] ;		//定义用户堆栈，4k，指向指在最后一项。
 
+//该结构用于设置堆栈ss：esp（数据段选择符，指针）。
 struct {
 	long * a;
 	short b;
@@ -74,20 +78,22 @@ struct {
  *  'math_state_restore()' saves the current math information in the
  * old math state array, and gets the new ones from the current task
  */
+
+//任务调度时，保存原来的协处理器状态，并恢复新任务的协处理器状态
 void math_state_restore()
 {
-	if (last_task_used_math == current)
+	if (last_task_used_math == current)  //如果任务没变则返回。
 		return;
-	__asm__("fwait");
-	if (last_task_used_math) {
+	__asm__("fwait");		
+	if (last_task_used_math) {		//如果上个任务使用了协处理器，保存其状态。
 		__asm__("fnsave %0"::"m" (last_task_used_math->tss.i387));
 	}
-	last_task_used_math=current;
-	if (current->used_math) {
+	last_task_used_math=current;	//指向当前任务
+	if (current->used_math) {		//当前是否用过协处理器，则恢复其状态。
 		__asm__("frstor %0"::"m" (current->tss.i387));
-	} else {
-		__asm__("fninit"::);
-		current->used_math=1;
+	} else {					//否则是第一次使用
+		__asm__("fninit"::);	//发送初始化命令。
+		current->used_math=1;	//并设置使用了协处理器标志
 	}
 }
 
@@ -182,22 +188,26 @@ int sys_pause(void)
 	return 0;
 }
 
+//当请求的资源正忙，暂时切换出去。将当前任务设为不可响应中断，并隐式的创建一个
+//
 void sleep_on(struct task_struct **p)
 {
 	struct task_struct *tmp;
 
 	if (!p)
 		return;
-	if (current == &(init_task.task))
+	if (current == &(init_task.task))  //若当前任务是任务0 则死机
 		panic("task[0] trying to sleep");
-	tmp = *p;
-	*p = current;
-	current->state = TASK_UNINTERRUPTIBLE;
-	schedule();
+	tmp = *p;						//让tmp指向已经在等待队列上的任务
+	*p = current;					//将睡眠列头的等待指针指向当前。
+	current->state = TASK_UNINTERRUPTIBLE;   //将当前设为不可响应中断
+	schedule();				
+	//只有当这个等待任务被换形时，调度程序才又返回这里，
 	if (tmp)
 		tmp->state=0;
 }
 
+//将当前任务放入可中断的等待状态，并放入*p指定的队列中
 void interruptible_sleep_on(struct task_struct **p)
 {
 	struct task_struct *tmp;
@@ -208,22 +218,25 @@ void interruptible_sleep_on(struct task_struct **p)
 		panic("task[0] trying to sleep");
 	tmp=*p;
 	*p=current;
-repeat:	current->state = TASK_INTERRUPTIBLE;
-	schedule();
-	if (*p && *p != current) {
-		(**p).state=0;
+repeat:	current->state = TASK_INTERRUPTIBLE;  //将当前设为可中断的等待状态
+	schedule();	//执行调度
+	//可运行的任务不是当前任务，说明等待队列中还有别的任务要先执行，该任务是新插入队列的新任务。
+	//将所有的任务置可中断的等待状态，然后重新调度。
+	if (*p && *p != current) {	
+		(**p).state=0;	//将该等待任务置为可运行的就绪态。然后重新调度。
 		goto repeat;
 	}
-	*p=NULL;
+	*p=tmp; //此处应为tmp，如果为null会抹去所有新翻入的任务
 	if (tmp)
 		tmp->state=0;
 }
 
+//唤醒任务。
 void wake_up(struct task_struct **p)
 {
 	if (p && *p) {
-		(**p).state=0;
-		*p=NULL;
+		(**p).state=0;	//state为0即为可运行态
+		//*p=NULL;
 	}
 }
 
@@ -232,6 +245,7 @@ void wake_up(struct task_struct **p)
  * proper. They are here because the floppy needs a timer, and this
  * was the easiest way of doing it.
  */
+//软驱A-D，不用管这个
 static struct task_struct * wait_motor[4] = {NULL,NULL,NULL,NULL};
 static int  mon_timer[4]={0,0,0,0};
 static int moff_timer[4]={0,0,0,0};
@@ -295,34 +309,35 @@ void do_floppy_timer(void)
 	}
 }
 
-#define TIME_REQUESTS 64
-
+#define TIME_REQUESTS 64	 //最多可以有64个定时器链表
+	//定时器链表结构和定时器数组
 static struct timer_list {
-	long jiffies;
-	void (*fn)();
-	struct timer_list * next;
+	long jiffies;	//定时滴答数
+	void (*fn)();	//定时处理程序
+	struct timer_list * next;	//下一个定时器
 } timer_list[TIME_REQUESTS], * next_timer = NULL;
 
+//添加定时器，输入参数为指定的定时器
 void add_timer(long jiffies, void (*fn)(void))
 {
 	struct timer_list * p;
 
-	if (!fn)
+	if (!fn)	//定时处理函数指针为空
 		return;
-	cli();
-	if (jiffies <= 0)
-		(fn)();
+	cli();	//禁止中断发生
+	if (jiffies <= 0)	//立即处理该程序
+		(fn)();	
 	else {
 		for (p = timer_list ; p < timer_list + TIME_REQUESTS ; p++)
-			if (!p->fn)
+			if (!p->fn)	//寻找一个空闲项
 				break;
 		if (p >= timer_list + TIME_REQUESTS)
-			panic("No more time requests free");
-		p->fn = fn;
+			panic("No more time requests free"); //数组用完，系统崩溃
+		p->fn = fn;		//将当前定时器接入链表中
 		p->jiffies = jiffies;
 		p->next = next_timer;
 		next_timer = p;
-		while (p->next && p->next->jiffies < p->jiffies) {
+		while (p->next && p->next->jiffies < p->jiffies) {	//将任务按照定时器值从小到大的顺序排列。
 			p->jiffies -= p->next->jiffies;
 			fn = p->fn;
 			p->fn = p->next->fn;
@@ -333,22 +348,23 @@ void add_timer(long jiffies, void (*fn)(void))
 			p = p->next;
 		}
 	}
-	sti();
+	sti();  //开中断
 }
 
+//时钟中断c函数处理程序。cpl是特权级0或3,0是内核态
 void do_timer(long cpl)
 {
-	extern int beepcount;
-	extern void sysbeepstop(void);
+	extern int beepcount;  //扬声器
+	extern void sysbeepstop(void);		//关闭扬声器
 
 	if (beepcount)
 		if (!--beepcount)
 			sysbeepstop();
 
 	if (cpl)
-		current->utime++;
+		current->utime++;	//
 	else
-		current->stime++;
+		current->stime++;	//超级用户的时间
 
 	if (next_timer) {
 		next_timer->jiffies--;
