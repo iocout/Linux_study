@@ -385,46 +385,55 @@ void do_timer(long cpl)
 	schedule();
 }
 
+//设置报警定时时间值（秒）
 int sys_alarm(long seconds)
 {
 	int old = current->alarm;
 
 	if (old)
 		old = (old - jiffies) / HZ;
-	current->alarm = (seconds>0)?(jiffies+HZ*seconds):0;
-	return (old);
+	current->alarm = (seconds>0)?(jiffies+HZ*seconds):0;  //设置新的定时时间
+	return (old);	//返回原定时时间。
 }
 
-int sys_getpid(void)
+//取得当前id
+int sys_getpid(void)  
 {
 	return current->pid;
 }
 
+//取得父进程id
 int sys_getppid(void)
 {
 	return current->father;
 }
 
+//取得用户id
 int sys_getuid(void)
 {
 	return current->uid;
 }
 
+//取得euid，一般同用户id
 int sys_geteuid(void)
 {
 	return current->euid;
 }
 
+//取得组id
 int sys_getgid(void)
 {
 	return current->gid;
 }
 
+//egid
 int sys_getegid(void)
 {
 	return current->egid;
 }
 
+//系统调用功能，--降低对cpu的优先使用权
+//人为降低优先权
 int sys_nice(long increment)
 {
 	if (current->priority-increment>0)
@@ -432,17 +441,21 @@ int sys_nice(long increment)
 	return 0;
 }
 
+//调度程序的初始化子程序
 void sched_init(void)
 {
 	int i;
 	struct desc_struct * p;
 
-	if (sizeof(struct sigaction) != 16)
+	if (sizeof(struct sigaction) != 16)		//sigaction是存放有关信号状态的结构。
 		panic("Struct sigaction MUST be 16 bytes");
-	set_tss_desc(gdt+FIRST_TSS_ENTRY,&(init_task.task.tss));
+
+	//设置初始任务（任务0）的任务转态段描述符合局部数据表描述符（include/asm/sysytem.h,65)
+	set_tss_desc(gdt+FIRST_TSS_ENTRY,&(init_task.task.tss));	
 	set_ldt_desc(gdt+FIRST_LDT_ENTRY,&(init_task.task.ldt));
+	//清任务数组和描述符表项
 	p = gdt+2+FIRST_TSS_ENTRY;
-	for(i=1;i<NR_TASKS;i++) {
+	for(i=1;i<NR_TASKS;i++) {	//从1开始，这里仍然保存了初始任务0的描述符
 		task[i] = NULL;
 		p->a=p->b=0;
 		p++;

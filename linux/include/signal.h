@@ -4,9 +4,9 @@
 #include <sys/types.h>
 
 typedef int sig_atomic_t;
-typedef unsigned int sigset_t;		/* 32 bits */
+typedef unsigned int sigset_t;		/* 32 bits */ //总共能够定义32位。
 
-#define _NSIG             32
+#define _NSIG        32
 #define NSIG		_NSIG
 
 #define SIGHUP		 1
@@ -42,17 +42,17 @@ typedef unsigned int sigset_t;		/* 32 bits */
 #define SIG_UNBLOCK        1	/* for unblocking signals */
 #define SIG_SETMASK        2	/* for setting the signal mask */
 
-#define SIG_DFL		((void (*)(int))0)	/* default signal handling */
-#define SIG_IGN		((void (*)(int))1)	/* ignore signal */
+#define SIG_DFL		((void (*)(int))0)	/* default signal handling */  //默认句柄
+#define SIG_IGN		((void (*)(int))1)	/* ignore signal */		//忽略句柄
 
 struct sigaction {
-	void (*sa_handler)(int);
-	sigset_t sa_mask;
-	int sa_flags;
-	void (*sa_restorer)(void);
+	void (*sa_handler)(int);	//函数处理句柄
+	sigset_t sa_mask;	//信号的屏蔽码，可以阻塞指定的信号集
+	int sa_flags;	//信号选项标志
+	void (*sa_restorer)(void);		//信号恢复函数指针
 };
 
-void (*signal(int _sig, void (*_func)(int)))(int);
+void (*signal(int _sig, void (*_func)(int)))(int);	// signal（）函数原型（使用右左法则判断函数类型）。第一个参数是要捕获的信号。第二个是信号处理句柄。
 int raise(int sig);
 int kill(pid_t pid, int sig);
 int sigaddset(sigset_t *mask, int signo);

@@ -104,25 +104,26 @@ __asm__("cld\n"
 return __res;
 }
 
+//
 extern inline int strncmp(const char * cs,const char * ct,int count)
 {
-register int __res __asm__("ax");
-__asm__("cld\n"
-	"1:\tdecl %3\n\t"
-	"js 2f\n\t"
-	"lodsb\n\t"
-	"scasb\n\t"
-	"jne 3f\n\t"
-	"testb %%al,%%al\n\t"
-	"jne 1b\n"
-	"2:\txorl %%eax,%%eax\n\t"
-	"jmp 4f\n"
-	"3:\tmovl $1,%%eax\n\t"
-	"jl 4f\n\t"
-	"negl %%eax\n"
-	"4:"
+register int __res __asm__("ax");   //_res是寄存器变量
+__asm__("cld\n"  				    //
+	"1:\tdecl %3\n\t"			    //
+	"js 2f\n\t"					    //
+	"lodsb\n\t"					    //
+	"scasb\n\t"						//
+	"jne 3f\n\t"					//
+	"testb %%al,%%al\n\t"			//
+	"jne 1b\n"						//
+	"2:\txorl %%eax,%%eax\n\t"		//
+	"jmp 4f\n"						//
+	"3:\tmovl $1,%%eax\n\t"			//
+	"jl 4f\n\t"						//
+	"negl %%eax\n"					//
+	"4:"							//
 	:"=a" (__res):"D" (cs),"S" (ct),"c" (count):"si","di","cx");
-return __res;
+return __res;						//返回比较结果
 }
 
 extern inline char * strchr(const char * s,char c)

@@ -16,6 +16,8 @@
 int sys_pause(void);
 int sys_close(int fd);
 
+
+//释放指定进程占用的任务槽和内存
 void release(struct task_struct * p)
 {
 	int i;
@@ -29,7 +31,7 @@ void release(struct task_struct * p)
 			schedule();
 			return;
 		}
-	panic("trying to release non-existent task");
+	panic("trying to release non-existent task");	//指定任务不存在就死机
 }
 
 static inline int send_sig(long sig,struct task_struct * p,int priv)
