@@ -17,25 +17,29 @@
 #include <asm/segment.h>
 #include <asm/system.h>
 
-extern void write_verify(unsigned long address);
+extern void write_verify(unsigned long address);	//
 
-long last_pid=0;
+long last_pid=0;	//最新进程号
 
+//进程空间区域写前验证函数
+//这段看原本的注释
 void verify_area(void * addr,int size)
 {
-	unsigned long start;
+	unsigned long start;	//页的左边界位置
 
-	start = (unsigned long) addr;
-	size += start & 0xfff;
-	start &= 0xfffff000;
-	start += get_base(current->ldt[2]);
+	start = (unsigned long) addr;	//
+	size += start & 0xfff;	//获取所在页的偏移值	//size=size+start%(4k),调整起始地址后的长度
+	start &= 0xfffff000;	//调整成所在页的区域大小 //重置开始地址，将地址整成整4k字节开始，即从整字节开始验证
+	start += get_base(current->ldt[2]);		//下面把start 加上进程数据段在线性地址空间中的起始基址，
+											//变成系统整个线性空间中的地址位置。
 	while (size>0) {
-		size -= 4096;
-		write_verify(start);
+		size -= 4096;			// 一次验证一页内存
+		write_verify(start);	//写页面验证。若页面不可写，则复制页面
 		start += 4096;
 	}
 }
 
+//copy_mem()设置新任务的代码和数据段基址、限长并复制页表。 nr 为新任务号；p 是新任务数据结构的指针。
 int copy_mem(int nr,struct task_struct * p)
 {
 	unsigned long old_data_base,new_data_base,data_limit;
@@ -74,15 +78,15 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	int i;
 	struct file *f;
 
-	p = (struct task_struct *) get_free_page();
+	p = (struct task_struct *) get_free_page();		//申请一页空闲内存
 	if (!p)
 		return -EAGAIN;
-	task[nr] = p;
+	task[nr] = p;			//放入指针数组
 	*p = *current;	/* NOTE! this doesn't copy the supervisor stack */
-	p->state = TASK_UNINTERRUPTIBLE;
-	p->pid = last_pid;
+	p->state = TASK_UNINTERRUPTIBLE;	//先不可中断
+	p->pid = last_pid;	
 	p->father = current->pid;
-	p->counter = p->priority;
+	p->counter = p->priority;		//设置时间片
 	p->signal = 0;
 	p->alarm = 0;
 	p->leader = 0;		/* process leadership doesn't inherit */
@@ -108,19 +112,19 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	p->tss.ds = ds & 0xffff;
 	p->tss.fs = fs & 0xffff;
 	p->tss.gs = gs & 0xffff;
-	p->tss.ldt = _LDT(nr);
-	p->tss.trace_bitmap = 0x80000000;
-	if (last_task_used_math == current)
+	p->tss.ldt = _LDT(nr);		//设置新进程的全局描述符
+	p->tss.trace_bitmap = 0x80000000;		//
+	if (last_task_used_math == current)	//协处理器
 		__asm__("clts ; fnsave %0"::"m" (p->tss.i387));
-	if (copy_mem(nr,p)) {
+	if (copy_mem(nr,p)) {		//返回不为0 表示出错
 		task[nr] = NULL;
 		free_page((long) p);
 		return -EAGAIN;
 	}
-	for (i=0; i<NR_OPEN;i++)
+	for (i=0; i<NR_OPEN;i++)	//引用次数+1
 		if (f=p->filp[i])
 			f->f_count++;
-	if (current->pwd)
+	if (current->pwd)	
 		current->pwd->i_count++;
 	if (current->root)
 		current->root->i_count++;
