@@ -133,6 +133,8 @@ int vsprintf(char *buf, const char *fmt, va_list args)
 			field_width = skip_atoi(&fmt);  //把格式输出宽度由字符转换成数字
 		else if (*fmt == '*') {   //如果是*，表示下一个参数指定域宽，用va_arg来取得
 			/* it's the next argument */
+			//这里有个bug，插入++fmt
+			++fmt;
 			field_width = va_arg(args, int);   
 			if (field_width < 0) {  //如果是个负数，左对齐
 				field_width = -field_width;
@@ -235,5 +237,5 @@ int vsprintf(char *buf, const char *fmt, va_list args)
 		}
 	}
 	*str = '\0';
-	return str-buf;
+	return str-buf;	//返回转换好的字符串长度
 }

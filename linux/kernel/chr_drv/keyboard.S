@@ -9,24 +9,45 @@
  *		Wolfgang Thiel for German keyboard patches
  *		Marc Corsini for the French keyboard
  */
-
+//这玩意。。。算了
 #include <linux/config.h>
 
 .text
-.globl _keyboard_interrupt
+.globl _keyboard_interrupt	
 
 /*
  * these are for the keyboard read functions
  */
+ //键盘读操作
 size	= 1024		/* must be a power of two ! And MUST be the same
-			   as in tty_io.c !!!! */
-head = 4
-tail = 8
-proc_list = 12
-buf = 16
+			   as in tty_io.c !!!! */	
+//以下是缓冲队列结构中的偏移量
+head = 4	//头指针
+tail = 8	//尾指针
+proc_list = 12	//等待该缓冲队列的进程字段偏移
+buf = 16	//缓冲区字段偏移
 
-mode:	.byte 0		/* caps, alt, ctrl and shift mode */
-leds:	.byte 2		/* num-lock, caps, scroll-lock mode (nom-lock on) */
+//mode是键盘特殊键的按下状态标志
+//表示大小写转换键（caps),交换键（alt），控制键（ctrl）和换挡键（shift）的状态
+//位7caps键按下
+//位6 caps键按下
+//位5 右alt键按下
+//位4 左alt键按下
+//位3 右ctrl键按下
+//位2 左ctrl键按下
+//位1 右shift键按下
+//位0 左shift键按下
+mode:	.byte 0		/* caps, alt, ctrl and shift mode */ //8位
+
+//数字锁定键（num—lock），大小写转换键（caps-lock）和滚动锁定键（scroll-lock)的LED发光管状态
+//位7-3全0不用
+//位2 caps-lock；
+//位1 num-lock（初始置1，也即设置数字锁定键（num-lock）发光管为亮）；
+leds:	.byte 2		/* num-lock, caps, scroll-lock mode (nom-lock on) */ //8位
+
+//当扫描码是0xe0或0xe1时，置该标志。表示其后还跟随着1个或2个字符扫描码，
+//位1=1 收到0xe1标志
+//位0=1 收到0xe0标志
 e0:	.byte 0
 
 /*
@@ -41,10 +62,10 @@ _keyboard_interrupt:
 	pushl %edx
 	push %ds
 	push %es
-	movl $0x10,%eax
+	movl $0x10,%eax	 //ds，es段寄存器置为内核数据段
 	mov %ax,%ds
 	mov %ax,%es
-	xorl %al,%al		/* %eax is scan code */
+	xorl %al,%al		/* %eax is scan code */ //eax中是扫描码
 	inb $0x60,%al
 	cmpb $0xe0,%al
 	je set_e0
@@ -66,7 +87,7 @@ e0_e1:	inb $0x61,%al
 	movb $0x20,%al
 	outb %al,$0x20
 	pushl $0
-	call _do_tty_interrupt
+	call _do_tty_interrupt	//调用数据规范函数
 	addl $4,%esp
 	pop %es
 	pop %ds
@@ -95,7 +116,7 @@ put_queue:
 	andl $size-1,%ecx
 	cmpl tail(%edx),%ecx		# buffer full - discard everything
 	je 3f
-	shrdl $8,%ebx,%eax
+	shrdl $8,%ebx,%eax			//
 	je 2f
 	shrl $8,%ebx
 	jmp 1b

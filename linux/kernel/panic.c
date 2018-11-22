@@ -8,6 +8,8 @@
  * This function is used through-out the kernel (includeinh mm and fs)
  * to indicate a major problem.
  */
+
+//painc，惊恐，用于严重出错调用该函数。
 #include <linux/kernel.h>
 #include <linux/sched.h>
 
@@ -20,5 +22,5 @@ volatile void panic(const char * s)
 		printk("In swapper task - not syncing\n\r");
 	else
 		sys_sync();
-	for(;;);
+	for(;;);	//直接死机
 }

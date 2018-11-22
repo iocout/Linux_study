@@ -9,6 +9,9 @@
  * point to 'interesting' things. Make a printf with fs-saving, and
  * all is well.
  */
+
+//用于内核出错的打印
+
 #include <stdarg.h>
 #include <stddef.h>
 
@@ -36,6 +39,6 @@ int printk(const char *fmt, ...)
 		"addl $8,%%esp\n\t"
 		"popl %0\n\t"
 		"pop %%fs"
-		::"r" (i):"ax","cx","dx");
+		::"r" (i):"ax","cx","dx");	//通知编译器，发生改变
 	return i;
 }

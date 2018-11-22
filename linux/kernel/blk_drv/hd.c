@@ -13,7 +13,9 @@
  *  modified by Drew Eckhardt to check nr of hd's from the CMOS.
  */
 
-#include <linux/config.h>
+//本函数不可中断
+
+#include <linux/config.h>   //定义键盘语言和硬盘类型                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/kernel.h>
@@ -22,55 +24,71 @@
 #include <asm/io.h>
 #include <asm/segment.h>
 
-#define MAJOR_NR 3
-#include "blk.h"
+#define MAJOR_NR 3	//硬盘主设备号是3
+#include "blk.h"  //块设备头文件
 
-#define CMOS_READ(addr) ({ \
+#define CMOS_READ(addr) ({ \  //读cmos宏参数
 outb_p(0x80|addr,0x70); \
 inb_p(0x71); \
 })
 
 /* Max read/write errors/sector */
-#define MAX_ERRORS	7
-#define MAX_HD		2
+#define MAX_ERRORS	7	//读写一个扇区时最多出错次数
+#define MAX_HD		2	//系统支持的最多硬盘数
 
-static void recal_intr(void);
+static void recal_intr(void);	//重新校正函数
 
-static int recalibrate = 1;
-static int reset = 1;
+static int recalibrate = 1;	//重新校正标志
+static int reset = 1;	//复位标志，放生读写错误时设置该标志位
 
 /*
  *  This struct defines the HD's and their types.
  */
+//硬盘参数及类型，分别对应磁头数，每磁道扇区数，柱面数，
+//写前预补偿柱面号，磁头着陆区柱面号，控制字节。
 struct hd_i_struct {
 	int head,sect,cyl,wpcom,lzone,ctl;
 	};
-#ifdef HD_TYPE
-struct hd_i_struct hd_info[] = { HD_TYPE };
-#define NR_HD ((sizeof (hd_info))/(sizeof (struct hd_i_struct)))
+#ifdef HD_TYPE	//如果定义了HD_TYPE
+struct hd_i_struct hd_info[] = { HD_TYPE };	//就用定义好的参数作为hd_info[]的数据。否则先默认设为0（在setup中）
+#define NR_HD ((sizeof (hd_info))/(sizeof (struct hd_i_struct)))	//硬盘个数
 #else
 struct hd_i_struct hd_info[] = { {0,0,0,0,0,0},{0,0,0,0,0,0} };
 static int NR_HD = 0;
 #endif
-
+//定义硬盘分区结构，给出每个分区的物理起始扇区号，分区扇区总数
+//其中5的倍数处的项代表整个硬盘的参数如hd[0] hd[5]
 static struct hd_struct {
 	long start_sect;
 	long nr_sects;
 } hd[5*MAX_HD]={{0,0},};
 
+//读端口port，共度nr字，保存在buf中
+/*
+cld：屏蔽中断
+rep：
+INSW:INSW指令分别从DX指出的外设端口输入一个字节或字到由ES: DI指定的存储器中，且根据方向标志位DF和串操作的类型来修改DI的值。
+d:输入端口
+D：输出端口
+c：计数器
+di：目的地址
+si：源地址
+*/
 #define port_read(port,buf,nr) \
 __asm__("cld;rep;insw"::"d" (port),"D" (buf),"c" (nr):"cx","di")
 
+
+//写端口port
 #define port_write(port,buf,nr) \
 __asm__("cld;rep;outsw"::"d" (port),"S" (buf),"c" (nr):"cx","si")
 
-extern void hd_interrupt(void);
-extern void rd_load(void);
+extern void hd_interrupt(void);	//硬盘中断(system_call.s,221)
+extern void rd_load(void);	//虚拟盘创建加载函数（ramdisk.c  71)
 
 /* This may be used only once, enforced by 'static int callable' */
 int sys_setup(void * BIOS)
 {
-	static int callable = 1;
+	static int callable = 1;	//static 用作调用标志，该函数只调用一次，注意static局部变量的生存周期和作用域
 	int i,drive;
 	unsigned char cmos_disks;
 	struct partition *p;
@@ -79,25 +97,26 @@ int sys_setup(void * BIOS)
 	if (!callable)
 		return -1;
 	callable = 0;
-#ifndef HD_TYPE
+#ifndef HD_TYPE 	//如果没有定义，就从0x90080读起
 	for (drive=0 ; drive<2 ; drive++) {
-		hd_info[drive].cyl = *(unsigned short *) BIOS;
-		hd_info[drive].head = *(unsigned char *) (2+BIOS);
-		hd_info[drive].wpcom = *(unsigned short *) (5+BIOS);
-		hd_info[drive].ctl = *(unsigned char *) (8+BIOS);
-		hd_info[drive].lzone = *(unsigned short *) (12+BIOS);
-		hd_info[drive].sect = *(unsigned char *) (14+BIOS);
-		BIOS += 16;
+		hd_info[drive].cyl = *(unsigned short *) BIOS;	//柱面数
+		hd_info[drive].head = *(unsigned char *) (2+BIOS);	//磁头数
+		hd_info[drive].wpcom = *(unsigned short *) (5+BIOS);	//写前预补偿柱面号
+		hd_info[drive].ctl = *(unsigned char *) (8+BIOS);	//控制字节
+		hd_info[drive].lzone = *(unsigned short *) (12+BIOS);	//磁头着陆区柱面号
+		hd_info[drive].sect = *(unsigned char *) (14+BIOS);		//每磁道扇区数
+		BIOS += 16;	//每个硬盘参数长为16字节这里指向下一个表
 	}
 	if (hd_info[1].cyl)
-		NR_HD=2;
+		NR_HD=2;	//硬盘数置为2
 	else
 		NR_HD=1;
 #endif
+//设置每个硬盘的起始扇区号和扇区总数。
 	for (i=0 ; i<NR_HD ; i++) {
-		hd[i*5].start_sect = 0;
-		hd[i*5].nr_sects = hd_info[i].head*
-				hd_info[i].sect*hd_info[i].cyl;
+		hd[i*5].start_sect = 0;  //硬盘起始扇区号
+		hd[i*5].nr_sects = hd_info[i].head*		
+				hd_info[i].sect*hd_info[i].cyl;	//硬盘总扇区数
 	}
 
 	/*
@@ -122,6 +141,7 @@ int sys_setup(void * BIOS)
 		
 	*/
 
+	//判断有几个硬盘，看是否与BIOS兼容
 	if ((cmos_disks = CMOS_READ(0x12)) & 0xf0)
 		if (cmos_disks & 0x0f)
 			NR_HD = 2;
@@ -129,18 +149,19 @@ int sys_setup(void * BIOS)
 			NR_HD = 1;
 	else
 		NR_HD = 0;
-	for (i = NR_HD ; i < 2 ; i++) {
+	for (i = NR_HD ; i < 2 ; i++) {	//注意如何清零的
 		hd[i*5].start_sect = 0;
 		hd[i*5].nr_sects = 0;
 	}
 	for (drive=0 ; drive<NR_HD ; drive++) {
-		if (!(bh = bread(0x300 + drive*5,0))) {
+		//bread（）fs/buffer.c 267
+		if (!(bh = bread(0x300 + drive*5,0))) {		//0X300和0x305逻辑设备号
 			printk("Unable to read partition table of drive %d\n\r",
 				drive);
 			panic("");
 		}
 		if (bh->b_data[510] != 0x55 || (unsigned char)
-		    bh->b_data[511] != 0xAA) {
+		    bh->b_data[511] != 0xAA) {	//判断硬盘信息有效验证55AA
 			printk("Bad partition table on drive %d\n\r",drive);
 			panic("");
 		}
@@ -247,25 +268,27 @@ static void bad_rw_intr(void)
 		reset = 1;
 }
 
-static void read_intr(void)
+//读端口中断调用函数
+static void read_intr(void)	
 {
-	if (win_result()) {
-		bad_rw_intr();
-		do_hd_request();
+	if (win_result()) {	//如果无法读取
+		bad_rw_intr();	//失败处理
+		do_hd_request();	//做复位处理
 		return;
 	}
-	port_read(HD_DATA,CURRENT->buffer,256);
-	CURRENT->errors = 0;
-	CURRENT->buffer += 512;
-	CURRENT->sector++;
-	if (--CURRENT->nr_sectors) {
+	port_read(HD_DATA,CURRENT->buffer,256);		//从端口读
+	CURRENT->errors = 0;	//错误位置位
+	CURRENT->buffer += 512;	//指向新的空区
+	CURRENT->sector++;	//起始扇区号+1
+	if (--CURRENT->nr_sectors) {	//如果没有读完
 		do_hd = &read_intr;
 		return;
 	}
-	end_request(1);
+	end_request(1);	//全部读完，则处理请求结束事宜
 	do_hd_request();
 }
 
+//写端口中断调用函数
 static void write_intr(void)
 {
 	if (win_result()) {
@@ -284,6 +307,7 @@ static void write_intr(void)
 	do_hd_request();
 }
 
+//出错处理
 static void recal_intr(void)
 {
 	if (win_result())
@@ -291,6 +315,7 @@ static void recal_intr(void)
 	do_hd_request();
 }
 
+//执行硬盘读写操作请求的中断响应函数
 void do_hd_request(void)
 {
 	int i,r;
@@ -299,8 +324,8 @@ void do_hd_request(void)
 	unsigned int nsect;
 
 	INIT_REQUEST;
-	dev = MINOR(CURRENT->dev);
-	block = CURRENT->sector;
+	dev = MINOR(CURRENT->dev);//设备号
+	block = CURRENT->sector;	//起始扇区
 	if (dev >= 5*NR_HD || block+2 > hd[dev].nr_sects) {
 		end_request(0);
 		goto repeat;
@@ -344,6 +369,6 @@ void hd_init(void)  //硬盘块初始化
 {
 	blk_dev[MAJOR_NR].request_fn = DEVICE_REQUEST;
 	set_intr_gate(0x2E,&hd_interrupt);  //陷阱们初始化
-	outb_p(inb_p(0x21)&0xfb,0x21);  //延时
+	outb_p(inb_p(0x21)&0xfb,0x21);  //
 	outb(inb_p(0xA1)&0xbf,0xA1);
 }

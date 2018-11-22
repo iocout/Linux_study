@@ -14,11 +14,11 @@
 #define TTY_BUF_SIZE 1024
 
 struct tty_queue {
-	unsigned long data;
-	unsigned long head;
-	unsigned long tail;
-	struct task_struct * proc_list;
-	char buf[TTY_BUF_SIZE];
+	unsigned long data;	//等待队列缓冲区中数据统计值，对于串口，存放端口地址
+	unsigned long head;	//缓冲区数据头指针
+	unsigned long tail;	//缓冲区数据尾指针
+	struct task_struct * proc_list;	//进程列表
+	char buf[TTY_BUF_SIZE];	//队列的缓冲区
 };
 
 #define INC(a) ((a) = ((a)+1) & (TTY_BUF_SIZE-1))
@@ -44,10 +44,10 @@ struct tty_queue {
 
 struct tty_struct {
 	struct termios termios;
-	int pgrp;
-	int stopped;
-	void (*write)(struct tty_struct * tty);
-	struct tty_queue read_q;
+	int pgrp;		//当前终端所在的进程组
+	int stopped;	//该进程终端是否停止使用
+	void (*write)(struct tty_struct * tty);		//该终端的输出处理函数
+	struct tty_queue read_q;	//
 	struct tty_queue write_q;
 	struct tty_queue secondary;
 	};

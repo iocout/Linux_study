@@ -36,20 +36,21 @@
  * These are set up by the setup-routine at boot-time:
  */
 
-#define ORIG_X			(*(unsigned char *)0x90000)
-#define ORIG_Y			(*(unsigned char *)0x90001)
-#define ORIG_VIDEO_PAGE		(*(unsigned short *)0x90004)
-#define ORIG_VIDEO_MODE		((*(unsigned short *)0x90006) & 0xff)
-#define ORIG_VIDEO_COLS 	(((*(unsigned short *)0x90006) & 0xff00) >> 8)
-#define ORIG_VIDEO_LINES	(25)
-#define ORIG_VIDEO_EGA_AX	(*(unsigned short *)0x90008)
-#define ORIG_VIDEO_EGA_BX	(*(unsigned short *)0x9000a)
-#define ORIG_VIDEO_EGA_CX	(*(unsigned short *)0x9000c)
+#define ORIG_X			(*(unsigned char *)0x90000)	//光标列号
+#define ORIG_Y			(*(unsigned char *)0x90001)	//光标行号
+#define ORIG_VIDEO_PAGE		(*(unsigned short *)0x90004)	//显示页面
+#define ORIG_VIDEO_MODE		((*(unsigned short *)0x90006) & 0xff)	//显示模式
+#define ORIG_VIDEO_COLS 	(((*(unsigned short *)0x90006) & 0xff00) >> 8)	//字符列数
+#define ORIG_VIDEO_LINES	(25)	//显示行数
+#define ORIG_VIDEO_EGA_AX	(*(unsigned short *)0x90008)	//【？？】
+#define ORIG_VIDEO_EGA_BX	(*(unsigned short *)0x9000a)	//显示内存大小和色彩模式
+#define ORIG_VIDEO_EGA_CX	(*(unsigned short *)0x9000c)	//显示卡特性参数
 
-#define VIDEO_TYPE_MDA		0x10	/* Monochrome Text Display	*/
-#define VIDEO_TYPE_CGA		0x11	/* CGA Display 			*/
-#define VIDEO_TYPE_EGAM		0x20	/* EGA/VGA in Monochrome Mode	*/
-#define VIDEO_TYPE_EGAC		0x21	/* EGA/VGA in Color Mode	*/
+//定义显示器单色/彩色显示模式类型符号
+#define VIDEO_TYPE_MDA		0x10	/* Monochrome Text Display	*/	//单色文本
+#define VIDEO_TYPE_CGA		0x11	/* CGA Display 			*/	//CGA显示器
+#define VIDEO_TYPE_EGAM		0x20	/* EGA/VGA in Monochrome Mode	*/	//ega、vga单色
+#define VIDEO_TYPE_EGAC		0x21	/* EGA/VGA in Color Mode	*/	//ega/vag 彩色
 
 #define NPAR 16
 

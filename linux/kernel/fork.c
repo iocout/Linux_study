@@ -136,16 +136,17 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	return last_pid;
 }
 
+//为新进程取得不重复的进程号last_pid,并返回在任务数组中的任务号（数组index）
 int find_empty_process(void)
 {
 	int i;
 
 	repeat:
-		if ((++last_pid)<0) last_pid=1;
+		if ((++last_pid)<0) last_pid=1;  //如果last_pid加1后超出正数表示范围，重新从1开始
 		for(i=0 ; i<NR_TASKS ; i++)
-			if (task[i] && task[i]->pid == last_pid) goto repeat;
-	for(i=1 ; i<NR_TASKS ; i++)
+			if (task[i] && task[i]->pid == last_pid) goto repeat;	//在任务数组中搜索pid号是否已经被任何任务使用，如果是则重新获取pid号
+	for(i=1 ; i<NR_TASKS ; i++)  //注意任务0不在这里边
 		if (!task[i])
-			return i;
-	return -EAGAIN;
+			return i;	//返回空的任务
+	return -EAGAIN;	//如果64个全部占用完，返回出错
 }

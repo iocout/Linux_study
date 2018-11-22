@@ -4,6 +4,7 @@
  *  Written by Theodore Ts'o, 12/2/91
  */
 
+/*内存虚拟盘驱动程序，主要是为了提高对“磁盘”数据的读写操作速度。*/
 #include <string.h>
 
 #include <linux/config.h>
@@ -14,12 +15,14 @@
 #include <asm/segment.h>
 #include <asm/memory.h>
 
-#define MAJOR_NR 1
+#define MAJOR_NR 1	//RAM盘主设备号是1，主设备号必须在blk.h前定义
+
 #include "blk.h"
 
-char	*rd_start;
+char	*rd_start;	//虚拟盘在内存中的起始位置
 int	rd_length = 0;
 
+//
 void do_rd_request(void)
 {
 	int	len;
@@ -49,6 +52,7 @@ void do_rd_request(void)
 /*
  * Returns amount of memory which needs to be reserved.
  */
+//初始化，返回虚拟盘所需的内存量
 long rd_init(long mem_start, int length)
 {
 	int	i;
@@ -70,14 +74,14 @@ long rd_init(long mem_start, int length)
  */
 void rd_load(void)
 {
-	struct buffer_head *bh;
-	struct super_block	s;
+	struct buffer_head *bh;		//高速缓冲块头指针
+	struct super_block	s;		//文件超级块
 	int		block = 256;	/* Start at block 256 */
-	int		i = 1;
+	int		i = 1;		
 	int		nblocks;
 	char		*cp;		/* Move pointer */
 	
-	if (!rd_length)
+	if (!rd_length)	//如果内存长度为0就退出
 		return;
 	printk("Ram disk: %d bytes, starting at 0x%x\n", rd_length,
 		(int) rd_start);
